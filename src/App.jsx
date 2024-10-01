@@ -1,33 +1,59 @@
-import React, { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import React, { useState, Suspense } from 'react';
 
-const FruitSelector = () => {
-  const [selectedFruit, setSelectedFruit] = useState('');
+const App = () => {
+  const [activeComponent, setActiveComponent] = useState(null);
+
+  const renderComponent = () => {
+    switch (activeComponent) {
+      case 'ModelA':
+        const ModelAApp = React.lazy(() => import('./ModelA'));
+        return <ModelAApp />;
+      case 'ModelB':
+        const ModelBApp = React.lazy(() => import('./ModelB'));
+        return <ModelBApp />;
+      case 'Ideal':
+        const IdealApp = React.lazy(() => import('./Ideal'));
+        return <IdealApp />;
+      default:
+        return null;
+    }
+  };
 
   return (
-    <div className="flex justify-center items-center h-screen">
-      <Card className="w-[350px]">
-        <CardHeader>
-          <CardTitle>Fruit Selector</CardTitle>
-          <CardDescription>Choose your favorite fruit from the options below.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="mb-4">Selected fruit: {selectedFruit || 'no selection'}</p>
-          <Select onValueChange={(value) => setSelectedFruit(value)}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select a fruit" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Apple">Apple</SelectItem>
-              <SelectItem value="Banana">Banana</SelectItem>
-              <SelectItem value="Strawberry">Strawberry</SelectItem>
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
+    <div className="h-screen w-screen flex items-center justify-center">
+      {activeComponent ? (
+        <Suspense fallback={<div className="text-2xl">Loading...</div>}>
+          <div className="h-screen w-screen">
+            {renderComponent()}
+          </div>
+        </Suspense>
+      ) : (
+        <div className="text-center space-y-4">
+          <h1 className="text-4xl font-bold mb-8">Choose Model</h1>
+          <div className="space-y-4 flex flex-col space-y-2">
+            <button
+              className="bg-white text-blue-500 font-semibold py-2 px-4 rounded shadow-md hover:bg-blue-100 transition"
+              onClick={() => setActiveComponent('ModelA')}
+            >
+              Show Model A
+            </button>
+            <button
+              className="bg-white text-blue-500 font-semibold py-2 px-4 rounded shadow-md hover:bg-blue-100 transition"
+              onClick={() => setActiveComponent('ModelB')}
+            >
+              Show Model B
+            </button>
+            <button
+              className="bg-white text-blue-500 font-semibold py-2 px-4 rounded shadow-md hover:bg-blue-100 transition"
+              onClick={() => setActiveComponent('Ideal')}
+            >
+              Show Ideal
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default FruitSelector;
+export default App;
