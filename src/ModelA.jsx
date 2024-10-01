@@ -1,105 +1,98 @@
-// App.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Slider } from "@/components/ui/slider";
 
-const App = () => {
-  const [journals, setJournals] = useState([]);
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentJournal, setCurrentJournal] = useState({ title: '', body: '', tags: [], viewCount: 0 });
+function App() {
+  const [gridSize, setGridSize] = useState({ n: 4, m: 4 });
+  const [colors, setColors] = useState(2);
+  const [visibilityTime, setVisibilityTime] = useState(3);
+  const [gameState, setGameState] = useState('setup');
+  const [grid, setGrid] = useState([]);
+  const [userGrid, setUserGrid] = useState([]);
+  const [showColors, setShowColors] = useState(false);
 
-  const openDialog = () => setIsOpen(true);
-  const closeDialog = () => {
-    setIsOpen(false);
-    setCurrentJournal({ title: '', body: '', tags: [], viewCount: 0 });
+  const generateGrid = useCallback((n, m, colorCount) => {
+    const colorsList = ['white', ...Array(colorCount - 1).fill(0).map((_, i) => `hsl(${i * 50}, 100%, 50%)`)];
+    return Array.from({ length: n * m }, () => colorsList[Math.floor(Math.random() * colorCount)]);
+  }, []);
+
+  const startGame = () => {
+    const newGrid = generateGrid(gridSize.n, gridSize.m, colors);
+    setGrid(newGrid);
+    setUserGrid(Array(gridSize.n * gridSize.m).fill(false));
+    setShowColors(true);
+    setGameState('playing');
+    setTimeout(() => {
+      setShowColors(false);
+      setGameState('guessing');
+    }, visibilityTime * 1000);
   };
 
-  const saveJournal = () => {
-    setJournals([...journals, { ...currentJournal, id: Date.now() }]);
-    closeDialog();
+  const handleSubmit = () => {
+    const correct = grid.filter((color, index) => color === 'white' && userGrid[index]);
+    const missed = grid.filter((color, index) => color === 'white' && !userGrid[index]);
+    const message = correct.length === grid.filter(color => color === 'white').length ? 
+      "You won!" : `Correct: ${correct.length}, Missed: ${missed.length}`;
+    alert(message);
+    setGameState('setup');
   };
 
-  const formatText = (text) => {
-    return text
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>');
+  const toggleCell = (index) => {
+    if (gameState === 'guessing') {
+      setUserGrid(prev => prev.map((val, idx) => idx === index ? !val : val));
+    }
   };
 
-  const filteredJournals = journals.filter(journal => 
-    journal.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    journal.body.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    journal.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-
-  const JournalDetail = ({ journal }) => (
-    <div className="p-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>{journal.title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div dangerouslySetInnerHTML={{__html: formatText(journal.body)}} />
-          <div className="mt-2">
-            {journal.tags.map(tag => <Badge key={tag} className="mr-2">{tag}</Badge>)}
-          </div>
-          <p>Viewed: {journal.viewCount} times</p>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  useEffect(() => {
+    if (gameState === 'setup') {
+      setGrid(generateGrid(gridSize.n, gridSize.m, colors));
+    }
+  }, [gameState, gridSize.n, gridSize.m, colors, generateGrid]);
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-4">
-        <Input 
-          placeholder="Search journals..." 
-          value={searchTerm} 
-          onChange={(e) => setSearchTerm(e.target.value)} 
-          className="w-1/2"
-        />
-        <Button onClick={openDialog}>Add Journal</Button>
+    <div className="flex flex-col items-center p-4 space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Memory Color Game</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <Slider 
+              value={[gridSize.n]} 
+              onValueChange={v => setGridSize({...gridSize, n: v[0], m: v[0]})} 
+              max={7} min={1} step={1} label="Grid Size"
+            />
+            <Slider 
+              value={[colors]} 
+              onValueChange={v => setColors(v[0])} 
+              max={7} min={1} step={1} label="Colors"
+            />
+            <Slider 
+              value={[visibilityTime]} 
+              onValueChange={v => setVisibilityTime(v[0])} 
+              max={10} min={1} step={1} label="Visibility (seconds)"
+            />
+          </div>
+        </CardContent>
+        <CardFooter>
+          {gameState === 'setup' && <Button onClick={startGame}>Start Game</Button>}
+          {gameState === 'guessing' && <Button onClick={handleSubmit}>Submit</Button>}
+        </CardFooter>
+      </Card>
+
+      <div className="grid grid-cols-7 gap-1 sm:grid-cols-4">
+        {grid.map((color, index) => (
+          <div 
+            key={index} 
+            className={`h-8 w-8 sm:h-12 sm:w-12 rounded ${showColors ? `bg-${color === 'white' ? 'white' : 'gray-500'}` : 'bg-gray-200'} border ${userGrid[index] ? 'border-2 border-blue-500' : ''}`}
+            onClick={() => toggleCell(index)}
+            style={{ backgroundColor: showColors ? color : undefined }}
+          ></div>
+        ))}
       </div>
-
-      {filteredJournals.length === 0 ? (
-        <p className="text-center">No journals match your search or no journals have been created yet.</p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredJournals.map(journal => (
-            <div key={journal.id} onClick={() => setCurrentJournal({...journal, viewCount: journal.viewCount + 1})}>
-              <JournalDetail journal={journal} />
-            </div>
-          ))}
-        </div>
-      )}
-
-      <Dialog open={isOpen} onOpenChange={closeDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <Label htmlFor="journalTitle">Title</Label>
-          <Input id="journalTitle" value={currentJournal.title} onChange={(e) => setCurrentJournal({...currentJournal, title: e.target.value})} />
-          <Label htmlFor="journalBody" className="mt-2">Body</Label>
-          <textarea 
-            id="journalBody" 
-            className="w-full p-2 border rounded" 
-            value={currentJournal.body} 
-            onChange={(e) => setCurrentJournal({...currentJournal, body: e.target.value})}
-          />
-          <Label htmlFor="journalTags" className="mt-2">Tags (comma separated)</Label>
-          <Input id="journalTags" 
-            value={currentJournal.tags.join(', ')} 
-            onChange={(e) => setCurrentJournal({...currentJournal, tags: e.target.value.split(',').map(tag => tag.trim())})}
-          />
-          <Button onClick={saveJournal} className="mt-4">Save Journal</Button>
-        </DialogContent>
-      </Dialog>
-
-      {currentJournal.id && <JournalDetail journal={currentJournal} />}
     </div>
   );
-};
+}
 
 export default App;

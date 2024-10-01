@@ -1,231 +1,245 @@
-import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
+// App.jsx
+import React, { useState, useEffect } from 'react';
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
-export default function App() {
-  const [journals, setJournals] = useState([]);
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentJournal, setCurrentJournal] = useState(null);
-  const [newJournal, setNewJournal] = useState({
-    title: '',
-    body: '',
-    tags: '',
-  });
+const GridCell = ({ index, color, onClick, isGuessPhase }) => {
+  const [isMarked, setIsMarked] = useState(false);
 
-  const openAddDialog = () => setIsAddDialogOpen(true);
-  const closeAddDialog = () => {
-    setIsAddDialogOpen(false);
-    setNewJournal({ title: '', body: '', tags: '' });
-  };
-
-  const addJournal = () => {
-    if (newJournal.title && newJournal.body) {
-      const formattedBody = newJournal.body
-        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
-        .replace(/\*(.*?)\*/g, '<i>$1</i>');
-      const tagsArray = newJournal.tags
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter((tag) => tag !== '');
-      const newEntry = {
-        id: Date.now(),
-        title: newJournal.title,
-        body: formattedBody,
-        tags: tagsArray,
-        viewCount: 0,
-      };
-      setJournals([...journals, newEntry]);
-      closeAddDialog();
+  const handleClick = () => {
+    if (isGuessPhase) {
+      setIsMarked(!isMarked);
+      onClick(index);
     }
   };
 
-  const viewJournal = (journal) => {
-    const updatedJournal = { ...journal, viewCount: journal.viewCount + 1 };
-    const updatedJournals = journals.map((j) =>
-      j.id === journal.id ? updatedJournal : j
-    );
-    setJournals(updatedJournals);
-    setCurrentJournal(updatedJournal);
-  };
-
-  const closeJournalDialog = () => {
-    setCurrentJournal(null);
-  };
-
-  const filteredJournals = journals.filter(
-    (journal) =>
-      journal.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      journal.body.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      journal.tags.some((tag) =>
-        tag.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+  return (
+    <div
+      className={`w-10 h-10 sm:w-14 sm:h-14 flex items-center justify-center rounded-md cursor-pointer transform transition-all duration-300 ${
+        isGuessPhase
+          ? isMarked
+            ? 'bg-blue-500'
+            : 'bg-gray-200 hover:bg-gray-300'
+          : color
+      }`}
+      onClick={handleClick}
+    ></div>
   );
+};
+
+export default function App() {
+  const [gridSize, setGridSize] = useState({ n: 5, m: 5 });
+  const [colorsToShow, setColorsToShow] = useState(2);
+  const [visibleTime, setVisibleTime] = useState(5);
+  const [grid, setGrid] = useState([]);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isGuessPhase, setIsGuessPhase] = useState(false);
+  const [markedCells, setMarkedCells] = useState([]);
+  const [result, setResult] = useState(null);
+  const [countdown, setCountdown] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    if (isPlaying) {
+      generateGrid();
+      setCountdown(visibleTime);
+      const countdownInterval = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval);
+            setIsGuessPhase(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(countdownInterval);
+    }
+  }, [isPlaying]);
+
+  const generateGrid = () => {
+    let newGrid = [];
+    const totalCells = gridSize.n * gridSize.m;
+    const whiteCellsCount = Math.floor(totalCells / colorsToShow);
+    const whiteCellsIndices = new Set();
+    while (whiteCellsIndices.size < whiteCellsCount) {
+      whiteCellsIndices.add(Math.floor(Math.random() * totalCells));
+    }
+    for (let i = 0; i < totalCells; i++) {
+      if (whiteCellsIndices.has(i)) {
+        newGrid.push('bg-white');
+      } else {
+        const colorOptions = [
+          'bg-red-400',
+          'bg-yellow-400',
+          'bg-green-400',
+          'bg-blue-400',
+          'bg-purple-400',
+          'bg-pink-400',
+        ];
+        newGrid.push(colorOptions[i % colorOptions.length]);
+      }
+    }
+    setGrid(newGrid);
+  };
+
+  const handleCellClick = (index) => {
+    if (markedCells.includes(index)) {
+      setMarkedCells(markedCells.filter((i) => i !== index));
+    } else {
+      setMarkedCells([...markedCells, index]);
+    }
+  };
+
+  const handleSubmit = () => {
+    const totalWhiteCells = grid.reduce(
+      (acc, color, index) => (color === 'bg-white' ? [...acc, index] : acc),
+      []
+    );
+    const correct = markedCells.filter((index) => totalWhiteCells.includes(index)).length;
+    const missed = totalWhiteCells.length - correct;
+    setResult({ correct, missed });
+    setIsPlaying(false);
+    setIsGuessPhase(false);
+  };
+
+  const startGame = () => {
+    setIsPlaying(true);
+    setResult(null);
+    setMarkedCells([]);
+    setShowSettings(false);
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-600 to-pink-500 p-4 sm:p-6">
-      <div className="container mx-auto">
-        <header className="mb-8 flex flex-col sm:flex-row justify-between items-center">
-          <h1 className="text-4xl font-extrabold text-white text-center sm:text-left mb-6 sm:mb-0">
-            Micro Journal
-          </h1>
-          <Button onClick={openAddDialog} className="w-full sm:w-auto">
-            Add Journal
-          </Button>
-        </header>
-
-        <Input
-          placeholder="Search journals or tags..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="mb-8 shadow-lg"
-        />
-
-        {filteredJournals.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredJournals.map((journal) => (
-              <JournalCard
-                key={journal.id}
-                journal={journal}
-                onView={viewJournal}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-center text-white text-lg">
-            No journals yet. Start by adding one!
-          </p>
-        )}
-
-        {/* Add Journal Dialog */}
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogContent className="rounded-lg shadow-2xl">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-bold">
-                Add New Journal
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <Input
-                value={newJournal.title}
-                onChange={(e) =>
-                  setNewJournal({ ...newJournal, title: e.target.value })
-                }
-                placeholder="Title"
-                className="shadow-md"
-              />
-              <Textarea
-                value={newJournal.body}
-                onChange={(e) =>
-                  setNewJournal({ ...newJournal, body: e.target.value })
-                }
-                placeholder="Your thoughts here... Use **bold** and *italic* for formatting."
-                className="shadow-md"
-              />
-              <Input
-                value={newJournal.tags}
-                onChange={(e) =>
-                  setNewJournal({ ...newJournal, tags: e.target.value })
-                }
-                placeholder="Tags (comma separated)"
-                className="shadow-md"
-              />
-            </div>
-            <DialogFooter>
-              <Button onClick={addJournal}>Save</Button>
-              <Button variant="secondary" onClick={closeAddDialog}>
-                Cancel
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Journal Detail Dialog */}
-        <Dialog
-          open={!!currentJournal}
-          onOpenChange={(isOpen) => {
-            if (!isOpen) closeJournalDialog();
-          }}
+    <div className="min-h-screen bg-gradient-to-br from-blue-500 via-teal-400 to-green-500 flex flex-col items-center justify-center p-4">
+      <style>
+        {`
+          @keyframes zoomIn {
+            from { opacity: 0; transform: scale(0.5); }
+            to { opacity: 1; transform: scale(1); }
+          }
+        `}
+      </style>
+      <h1 className="text-4xl font-extrabold text-white mb-6">Color Memory Game</h1>
+      {!isPlaying && !result && (
+        <Button
+          className="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-md"
+          onClick={() => setShowSettings(true)}
         >
-          <DialogContent className="sm:max-w-xl rounded-lg shadow-2xl">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-bold text-gray-800">
-                {currentJournal?.title}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="mt-4 space-y-4">
+          Play
+        </Button>
+      )}
+      {result && (
+        <div className="text-center mt-4">
+          {result.missed === 0 ? (
+            <p className="text-white font-bold text-2xl">You won! Perfect memory!</p>
+          ) : (
+            <p className="text-white">
+              Correct: {result.correct}, Missed: {result.missed}
+            </p>
+          )}
+          <Button
+            className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md"
+            onClick={() => setShowSettings(true)}
+          >
+            Play Again
+          </Button>
+        </div>
+      )}
+      {isPlaying && (
+        <div className="p-4">
+          {isPlaying && !isGuessPhase && (
+            <div className="text-center text-white font-bold text-xl mb-4">
+              Memorize the colors! Time left: {countdown}s
+            </div>
+          )}
+          {isPlaying && (
+            <div className="flex justify-center">
               <div
-                dangerouslySetInnerHTML={{ __html: currentJournal?.body }}
-                className="prose max-w-none text-gray-800"
-              />
-              <div className="flex flex-wrap gap-2">
-                {currentJournal?.tags.map((tag) => (
-                  <Badge key={tag} className="bg-indigo-500 text-white">
-                    {tag}
-                  </Badge>
+                className="grid gap-2"
+                style={{
+                  gridTemplateColumns: `repeat(${gridSize.n}, minmax(0, 1fr))`,
+                }}
+              >
+                {grid.map((color, index) => (
+                  <GridCell
+                    key={index}
+                    index={index}
+                    color={color}
+                    isGuessPhase={isGuessPhase}
+                    onClick={handleCellClick}
+                  />
                 ))}
               </div>
-              <p className="text-sm text-gray-500">
-                Viewed {currentJournal?.viewCount} times
-              </p>
             </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-    </div>
-  );
-}
-
-function JournalCard({ journal, onView }) {
-  return (
-    <Card
-      onClick={() => onView(journal)}
-      className="cursor-pointer hover:shadow-2xl transition-shadow bg-white bg-opacity-80 backdrop-blur-md rounded-lg overflow-hidden"
-    >
-      <div className="p-6">
-        <CardHeader className="mb-4">
-          <CardTitle className="truncate text-2xl font-bold text-gray-800">
-            {journal.title}
-          </CardTitle>
-          <CardDescription className="text-sm text-gray-500">
-            Viewed {journal.viewCount} times
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div
-            dangerouslySetInnerHTML={{
-              __html:
-                journal.body.length > 150
-                  ? journal.body.slice(0, 150) + '...'
-                  : journal.body,
-            }}
-            className="prose max-w-none text-gray-700"
-          />
-          <div className="mt-4 flex flex-wrap gap-2">
-            {journal.tags.map((tag) => (
-              <Badge key={tag} className="bg-indigo-500 text-white">
-                {tag}
-              </Badge>
-            ))}
+          )}
+          {isGuessPhase && (
+            <Button
+              className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md"
+              onClick={handleSubmit}
+            >
+              Submit
+            </Button>
+          )}
+        </div>
+      )}
+      <Dialog open={showSettings} onOpenChange={setShowSettings}>
+        <DialogContent
+          className="bg-gradient-to-br from-blue-500 via-teal-400 to-green-500 text-white rounded-lg shadow-lg"
+        >
+          <DialogTitle className="text-2xl font-bold mb-4">Game Settings</DialogTitle>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-white">Grid Width: {gridSize.n}</Label>
+              <Slider
+                value={[gridSize.n]}
+                onValueChange={(v) => setGridSize({ ...gridSize, n: v[0] })}
+                max={7}
+                min={1}
+                className="mt-2"
+              />
+            </div>
+            <div>
+              <Label className="text-white">Grid Height: {gridSize.m}</Label>
+              <Slider
+                value={[gridSize.m]}
+                onValueChange={(v) => setGridSize({ ...gridSize, m: v[0] })}
+                max={7}
+                min={1}
+                className="mt-2"
+              />
+            </div>
+            <div>
+              <Label className="text-white">Number of Colors: {colorsToShow}</Label>
+              <Slider
+                value={[colorsToShow]}
+                onValueChange={(v) => setColorsToShow(v[0])}
+                max={7}
+                min={2}
+                className="mt-2"
+              />
+            </div>
+            <div>
+              <Label className="text-white">Visibility Time (s): {visibleTime}</Label>
+              <Slider
+                value={[visibleTime]}
+                onValueChange={(v) => setVisibleTime(v[0])}
+                max={10}
+                min={1}
+                className="mt-2"
+              />
+            </div>
+            <Button
+              className="w-full mt-6 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md"
+              onClick={startGame}
+            >
+              Start Game
+            </Button>
           </div>
-        </CardContent>
-      </div>
-    </Card>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

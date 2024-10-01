@@ -1,146 +1,104 @@
+// App.jsx
 import React, { useState, useEffect } from 'react';
-// import { Button, Input, Textarea, Card, CardContent, CardHeader, CardTitle, CardDescription, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Badge } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import { Card, CardContent } from "@/components/ui/card";
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
+const GridCell = ({ index, color, onClick, isGuessPhase }) => {
+  const [isMarked, setIsMarked] = useState(false);
 
-
-function App() {
-  const [journals, setJournals] = useState([]);
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentJournal, setCurrentJournal] = useState({ title: '', body: '', tags: [], viewCount: 0 });
-
-  const openDialog = () => setIsOpen(true);
-  const closeDialog = () => { 
-    setIsOpen(false); 
-    setCurrentJournal({ title: '', body: '', tags: [], viewCount: 0 });
-  };
-
-  const addJournal = () => {
-    if (currentJournal.title && currentJournal.body) {
-      setJournals([...journals, { 
-        ...currentJournal, 
-        id: Date.now(),
-        body: currentJournal.body.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\*(.*?)\*/g, '<i>$1</i>')
-      }]);
-      closeDialog();
+  const handleClick = () => {
+    if (isGuessPhase) {
+      setIsMarked(!isMarked);
     }
   };
 
-  const viewJournal = (journal) => {
-    const updatedJournals = journals.map(j => 
-      j.id === journal.id ? { ...j, viewCount: j.viewCount + 1 } : j
-    );
-    setJournals(updatedJournals);
-    setCurrentJournal(journal);
+  return (
+    <div 
+      className={`w-8 h-8 sm:w-12 sm:h-12 border border-gray-300 m-1 flex items-center justify-center ${isMarked ? 'bg-blue-500' : color === 'white' && !isGuessPhase ? 'bg-white' : 'bg-gray-200'}`} 
+      onClick={handleClick}
+    >
+      {isMarked && '✓'}
+    </div>
+  );
+};
+
+export default function App() {
+  const [gridSize, setGridSize] = useState({ n: 4, m: 4 });
+  const [colorsToShow, setColorsToShow] = useState(2);
+  const [visibleTime, setVisibleTime] = useState(3);
+  const [grid, setGrid] = useState([]);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isGuessPhase, setIsGuessPhase] = useState(false);
+  const [result, setResult] = useState({ correct: 0, missed: 0 });
+
+  useEffect(() => {
+    if (isPlaying) {
+      generateGrid();
+      const timer = setTimeout(() => {
+        setIsGuessPhase(true);
+      }, visibleTime * 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isPlaying, visibleTime]);
+
+  const generateGrid = () => {
+    let newGrid = [];
+    for (let i = 0; i < gridSize.n * gridSize.m; i++) {
+      let color = Math.random() < 1 / colorsToShow ? 'white' : 'gray';
+      newGrid.push(color);
+    }
+    setGrid(newGrid);
   };
 
-  const filteredJournals = journals.filter(journal => 
-    journal.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    journal.body.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    journal.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const handleSubmit = () => {
+    let correct = 0, missed = 0;
+    grid.forEach((color, index) => {
+      if ((document.getElementById(`cell-${index}`).classList.contains('bg-blue-500') && color === 'white') || 
+          (!document.getElementById(`cell-${index}`).classList.contains('bg-blue-500') && color !== 'white')) {
+        correct++;
+      } else if (color === 'white') {
+        missed++;
+      }
+    });
+    setResult({ correct, missed });
+    setIsPlaying(false);
+    setIsGuessPhase(false);
+  };
+
+  const startGame = () => {
+    setIsPlaying(true);
+    setResult({ correct: 0, missed: 0 });
+  };
 
   return (
-    <div className="container mx-auto p-4 sm:p-6">
-      <header className="mb-4 flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Micro Journal</h1>
-        <Button onClick={openDialog}>Add Journal</Button>
-      </header>
-      <Input 
-        placeholder="Search journals or tags..." 
-        value={searchTerm} 
-        onChange={(e) => setSearchTerm(e.target.value)} 
-        className="mb-4"
-      />
-      {filteredJournals.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredJournals.map(journal => (
-            <JournalCard key={journal.id} journal={journal} onView={viewJournal} />
-          ))}
-        </div>
-      ) : (
-        <p className="text-center text-gray-500">No journals yet. Start by adding one!</p>
-      )}
-      
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Journal</DialogTitle>
-          </DialogHeader>
-          <Input 
-            value={currentJournal.title} 
-            onChange={(e) => setCurrentJournal({...currentJournal, title: e.target.value})}
-            placeholder="Title" 
-            className="my-2"
-          />
-          <Textarea 
-            value={currentJournal.body} 
-            onChange={(e) => setCurrentJournal({...currentJournal, body: e.target.value})}
-            placeholder="Your thoughts here... Use **bold** and *italic* for formatting."
-            className="my-2"
-          />
-          <Input 
-            value={currentJournal.tags.join(', ')} 
-            onChange={(e) => setCurrentJournal({...currentJournal, tags: e.target.value.split(',').map(tag => tag.trim())})}
-            placeholder="Tags (comma separated)" 
-            className="my-2"
-          />
-          <DialogFooter>
-            <Button onClick={addJournal}>Save</Button>
-            <Button variant="secondary" onClick={closeDialog}>Cancel</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {currentJournal.id && (
-        <JournalDetail journal={currentJournal} onClose={() => setCurrentJournal({})} />
-      )}
-    </div>
-  );
-}
-
-function JournalCard({ journal, onView }) {
-  return (
-    <Card onClick={() => onView(journal)} className="cursor-pointer">
-      <CardHeader>
-        <CardTitle>{journal.title}</CardTitle>
-        <CardDescription>Viewed: {journal.viewCount} times</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div dangerouslySetInnerHTML={{ __html: journal.body.slice(0, 100) + '...' }}></div>
-        <div className="mt-2">
-          {journal.tags.map(tag => <Badge key={tag} className="mr-1">{tag}</Badge>)}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function JournalDetail({ journal, onClose }) {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-25 backdrop-blur-sm flex justify-center items-center">
-      <div className="w-full max-w-lg p-6 bg-white rounded-lg shadow-lg">
-        <Card>
-          <CardHeader>
-            <CardTitle>{journal.title}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div dangerouslySetInnerHTML={{ __html: journal.body }}></div>
-            <div className="mt-2">
-              {journal.tags.map(tag => <Badge key={tag} className="mr-1">{tag}</Badge>)}
+    <div className="flex flex-col items-center p-4 space-y-4">
+      <Card>
+        <CardContent className="space-y-4">
+          <h1 className="text-2xl font-bold">Color Memory Game</h1>
+          <Slider label="Grid Width" value={[gridSize.n]} onValueChange={(v) => setGridSize({...gridSize, n: v[0]})} max={7} min={1} />
+          <Slider label="Grid Height" value={[gridSize.m]} onValueChange={(v) => setGridSize({...gridSize, m: v[0]})} max={7} min={1} />
+          <Slider label="Colors" value={[colorsToShow]} onValueChange={setColorsToShow} max={7} min={2} />
+          <Slider label="Visibility Time (s)" value={[visibleTime]} onValueChange={setVisibleTime} max={10} min={1} />
+          {!isPlaying && <Button onClick={startGame}>Start Game</Button>}
+          {isPlaying && (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(32px,1fr))] gap-2">
+              {grid.map((color, index) => (
+                <GridCell key={index} index={index} color={color} isGuessPhase={isGuessPhase} />
+              ))}
             </div>
-          </CardContent>
-          <Button onClick={onClose} className="mt-4">Close</Button>
-        </Card>
-      </div>
+          )}
+          {isGuessPhase && <Button onClick={handleSubmit}>Submit</Button>}
+          {result.correct + result.missed > 0 && (
+            <div>
+              {result.missed === 0 ? 
+                <p className="text-green-500">You won! Perfect memory!</p> : 
+                <p>Correct: {result.correct}, Missed: {result.missed}</p>
+              }
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
-
-export default App;
